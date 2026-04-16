@@ -3,8 +3,8 @@
 An AI platform featuring a custom Model Context Protocol (MCP) gateway, Hybrid RAG, and Multi-Agent Orchestration.
 
 ![Python](https://img.shields.io/badge/Python-FastAPI-blue)
-![AI](https://img.shields.io/badge/LangGraph-Multi--Agent-orange)
-![DB](https://img.shields.io/badge/PGVector-Hybrid_RAG-green)
+![AI](https://img.shields.io/badge/Agents-Router_Researcher_Synthesizer-orange)
+![DB](https://img.shields.io/badge/PGVector-Planned-green)
 ![Status](https://img.shields.io/badge/Status-v1_Active_Development-brightgreen)
 
 ## 📖 Overview
@@ -15,6 +15,17 @@ Enterprise AI fails when Large Language Models (LLMs) lack secure, standardized,
 it ingests enterprise data (Docs, APIs, DBs), standardizes it through a custom **MCP Context Gateway**, and orchestrates complex decision workflows using a **multi-agent system**.
 
 Instead of treating LLMs as standalone chatbots, KOS acts as an **API gateway for AI**.
+
+## ✅ What’s implemented today (v1 boilerplate)
+
+This repo currently ships a **runnable FastAPI skeleton** with the same boundaries described in the architecture diagram:
+
+- **Local corpus ingestion**: loads `.txt`/`.md` files from `data/corpus/` and chunks them at startup
+- **Hybrid retrieval (MVP)**: deterministic “semantic proxy” (token overlap) + “lexical proxy” (BM25-style weighting)
+- **MCP context gateway**: shapes/budgets context items returned to agents and `/query`
+- **Agent pipeline**: Router → Researcher → Synthesizer (template synthesis; LLM wiring comes next)
+
+Planned upgrades (PGVector + real BM25 + LangGraph + external LLMs) are intentionally listed in Phase v2/v3 so the narrative stays honest as the codebase grows.
 
 ## 🏗️ High-Level Architecture
 
@@ -46,10 +57,12 @@ Instead of treating LLMs as standalone chatbots, KOS acts as an **API gateway fo
 The foundational architecture proving the MCP boundary and the agentic workflow.
 
 - [x] **API layer**: FastAPI setup with `POST /query`, `GET /context`, and `POST /agent/run`
-- [x] **Ingestion**: Basic document (PDF/TXT) and API ingestion pipeline (MVP scope)
-- [x] **RAG layer**: Hybrid retrieval boundary (semantic + keyword), behind a stable interface
-- [x] **MCP layer**: Standardized JSON context injection for LLMs
-- [x] **Multi-agent system**: Router, Researcher, Synthesizer workflow
+- [x] **Ingestion (local MVP)**: load + chunk plain-text/markdown documents from `data/corpus/`
+- [ ] **Ingestion (enterprise MVP)**: PDF parsing + API connectors + scheduled refresh
+- [x] **RAG layer (MVP)**: hybrid retrieval boundary (semantic proxy + lexical proxy) behind a stable interface
+- [ ] **RAG layer (enterprise)**: PGVector semantic index + real BM25 + rerankers
+- [x] **MCP layer**: standardized context objects returned to agents and `/query`
+- [x] **Multi-agent system (MVP)**: Router, Researcher, Synthesizer workflow (Python orchestration)
 
 ### Phase v2: Scale, Observability & Resilience (Next)
 
@@ -72,8 +85,8 @@ The UX layer and cost-management features.
 ## 🛠️ Tech Stack
 
 - **Core API**: Python 3.11+, FastAPI, Uvicorn
-- **AI & orchestration**: LangChain, LangGraph, OpenAI/Gemini APIs
-- **Database & retrieval**: PostgreSQL (PGVector), FAISS, Redis
+- **AI & orchestration (planned)**: LangGraph + external LLM providers (wired after the API/RAG/MCP contracts stabilize)
+- **Database & retrieval (planned)**: PostgreSQL (PGVector), Redis, optional FAISS for local experiments
 - **DevOps (v2)**: Docker, Docker Compose, GitHub Actions (CI/CD)
 
 ## ⚡ Quick Start (v1)
@@ -98,6 +111,15 @@ uvicorn app.main:app --reload
 ```
 
 Swagger UI will be available at `http://localhost:8000/docs`.
+
+## 🧪 Tests
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python3 -m pytest
+```
 
 ## Why this README is intentionally phased
 
