@@ -1,0 +1,7 @@
+Hybrid retrieval (v1 demo corpus)
+
+Hybrid RAG combines multiple retrieval signals to reduce hallucinations and improve recall.
+
+In this repository’s v1 boilerplate, “semantic” retrieval is approximated with a deterministic token-overlap score between the query and each text chunk. “Lexical” retrieval is approximated with a BM25-style weighting using term frequency and inverse document frequency across the local corpus.
+
+Practical enterprise deployments typically replace these proxies with dense embeddings (for example, PGVector) plus a sparse lexical index (for example, BM25) and optionally a cross-encoder reranker.

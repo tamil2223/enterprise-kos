@@ -1,0 +1,11 @@
+MCP context gateway (v1 demo corpus)
+
+The MCP context gateway is the boundary between raw enterprise knowledge and the LLM.
+
+Its responsibilities include:
+- Selecting relevant knowledge candidates from retrieval systems
+- Normalizing context into a stable JSON-friendly schema with provenance
+- Applying budget limits (for example, maximum characters) so prompts stay safe and predictable
+- Providing a single place to add enterprise controls later (RBAC, redaction, auditing)
+
+The FastAPI layer should treat the gateway as the only supported path for injecting external knowledge into agent steps.

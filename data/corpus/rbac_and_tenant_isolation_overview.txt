@@ -1,0 +1,10 @@
+RBAC + tenant isolation (golden corpus)
+
+Enterprise correctness requires that the LLM never sees data the user is not permitted to access.
+
+In KOS, RBAC should be enforced at the MCP context gateway boundary: context items are filtered by (user, role, tenant) before they are returned to agents or injected into prompts.
+
+Typical controls:
+- Role-based access checks (who can read what)
+- Tenant scoping (cross-tenant leakage must be impossible)
+- Auditing (who requested which context and why)

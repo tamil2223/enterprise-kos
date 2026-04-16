@@ -1,0 +1,10 @@
+Observability for agent systems (golden corpus)
+
+Agent systems fail in subtle ways: retrieval drift, truncation, tool errors, and latency spikes.
+
+KOS observability should capture:
+- Step traces (router/researcher/synthesizer inputs + outputs)
+- Retrieval metrics (hit rate, top-k distribution, context budget usage)
+- Token/latency metrics per step and per endpoint
+
+In Phase v2, this can be wired to LangSmith and/or Prometheus.

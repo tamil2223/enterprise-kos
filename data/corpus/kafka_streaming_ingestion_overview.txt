@@ -1,0 +1,10 @@
+Kafka streaming ingestion (golden corpus)
+
+Kafka enables near real-time ingestion by turning data sources into append-only event streams.
+
+In KOS, streaming ingestion is a Phase v2 concern: producers emit document/API/DB change events, consumers normalize + chunk content, and the retrieval layer is updated incrementally.
+
+Key requirements:
+- Idempotency and deduplication (avoid re-indexing the same content)
+- Backpressure handling (don’t overwhelm chunking/embedding workers)
+- Schema evolution (events change safely over time)

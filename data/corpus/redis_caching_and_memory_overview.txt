@@ -1,0 +1,10 @@
+Redis caching + memory (golden corpus)
+
+Redis is useful for two different concerns:
+
+1) Context caching: cache retrieval results (or MCP-shaped context bundles) keyed by query + filters to reduce latency.
+2) Short-term memory: store recent user runs to maintain continuity across multi-step sessions.
+
+Key pitfalls:
+- Cache invalidation when sources change
+- Avoid caching sensitive data without an explicit policy

@@ -1,0 +1,10 @@
+Multitenancy, quotas, and rate limits (golden corpus)
+
+Enterprise KOS should treat every request as belonging to a tenant, even in early prototypes.
+
+Common production constraints:
+- Per-tenant quotas (runs/day, tokens/day)
+- Rate limits (RPS + burst)
+- Cost attribution per tenant and per workflow
+
+These controls typically live in the API layer, while data access enforcement lives in the MCP layer.

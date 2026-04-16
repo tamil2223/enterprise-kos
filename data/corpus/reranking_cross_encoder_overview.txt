@@ -1,0 +1,7 @@
+Reranking (cross-encoder) (golden corpus)
+
+Hybrid retrieval often returns “pretty good” candidates but still mixes in weak matches.
+
+A cross-encoder reranker improves precision by scoring (query, passage) pairs more accurately than embedding similarity or BM25 alone.
+
+In KOS, reranking is a Phase v2 upgrade: it sits after candidate retrieval and before the MCP gateway finalizes the context bundle.
