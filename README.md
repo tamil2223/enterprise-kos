@@ -126,4 +126,3 @@ python3 -m pytest
 - **It proves architectural thinking**: clear boundaries (Ingestion vs Retrieval vs MCP vs Agents vs API).
 - **It avoids scope creep**: v1 proves the core context injection + orchestration; v2 adds scale/security/observability; v3 adds UX and cost controls.
 - **It’s interview-friendly**: you can explain trade-offs without pretending v1 already solves enterprise scale.
-
