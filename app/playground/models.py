@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.playground.chunking import Chunk
 from app.playground.vector_store import VectorStore
@@ -38,7 +38,8 @@ class RunState:
     created_at: float
     documents: dict[str, Document] = field(default_factory=dict)
     chunks: dict[str, list[Chunk]] = field(default_factory=dict)  # doc_id -> chunks
-    chunk_params: dict[str, tuple[int, int]] = field(default_factory=dict)  # doc_id -> (chunk_size, overlap)
+    # doc_id -> (strategy, chunk_size, overlap, max_chunk_chars_for_structured_or_0)
+    chunk_params: dict[str, tuple[str, int, int, int]] = field(default_factory=dict)
     embeddings: dict[str, EmbeddingState] = field(default_factory=dict)  # doc_id -> embeddings
     index: IndexState | None = None
 
@@ -75,6 +76,11 @@ class ChunkRequest(BaseModel):
     doc_id: str
     chunk_size: int
     overlap: int
+    strategy: Literal["structured", "window"] = "structured"
+    max_chunk_chars: int | None = Field(
+        default=None,
+        description="Hard cap for structured chunks (chars). Defaults to max(int(chunk_size*1.35), chunk_size+200).",
+    )
 
 
 class ChunkInfo(BaseModel):
@@ -84,12 +90,21 @@ class ChunkInfo(BaseModel):
     start_char: int
     end_char: int
     text_preview: str
+    embed_text_preview: str | None = None
+    strategy: str | None = None
+    section_id: str | None = None
+    section_title: str | None = None
+    heading_path: str | None = None
+    source_name: str | None = None
+    section_chunk_index: int | None = None
 
 
 class ChunkResponse(BaseModel):
     doc_id: str
     chunk_size: int
     overlap: int
+    strategy: str = "structured"
+    max_chunk_chars: int | None = None
     chunks: list[ChunkInfo]
 
 

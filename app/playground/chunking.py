@@ -11,6 +11,14 @@ class Chunk:
     start_char: int
     end_char: int
     text: str
+    # Optional v2 fields (structured chunking + embed-time context)
+    embed_text: str | None = None
+    strategy: str = "window"
+    section_id: str | None = None
+    section_title: str | None = None
+    heading_path: str | None = None
+    source_name: str | None = None
+    section_chunk_index: int | None = None
 
 
 def chunk_text_window(*, text: str, chunk_size: int, overlap: int, doc_id: str) -> list[Chunk]:
@@ -46,6 +54,13 @@ def chunk_text_window(*, text: str, chunk_size: int, overlap: int, doc_id: str) 
                 start_char=start,
                 end_char=end,
                 text=chunk_text,
+                embed_text=chunk_text,
+                strategy="window",
+                section_id=f"{doc_id}#sec-root",
+                section_title="Document",
+                heading_path="Document",
+                source_name=None,
+                section_chunk_index=i,
             )
         )
         i += 1

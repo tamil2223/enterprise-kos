@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.playground.chunking import chunk_text_window
 from app.playground.embeddings import fake_embed_384
+from app.playground.structured_chunking import chunk_structured_document
 from app.playground.models import (
     ChunkRequest,
     ChunkResponse,
@@ -141,9 +142,35 @@ def run_chunking(run_id: str, req: ChunkRequest) -> ChunkResponse:
         raise HTTPException(status_code=404, detail="doc not found")
 
     doc = run.documents[req.doc_id]
-    chunks = chunk_text_window(text=doc.text, chunk_size=req.chunk_size, overlap=req.overlap, doc_id=req.doc_id)
+
+    max_chars = req.max_chunk_chars
+    if max_chars is None:
+        max_chars = max(int(req.chunk_size * 1.35), req.chunk_size + 200)
+    if max_chars < req.chunk_size:
+        raise HTTPException(status_code=400, detail="max_chunk_chars must be >= chunk_size")
+
+    if req.strategy == "window":
+        chunks = chunk_text_window(text=doc.text, chunk_size=req.chunk_size, overlap=req.overlap, doc_id=req.doc_id)
+        strategy = "window"
+        max_out: int | None = None
+    elif req.strategy == "structured":
+        chunks = chunk_structured_document(
+            text=doc.text,
+            doc_id=req.doc_id,
+            source_name=doc.name,
+            content_type=doc.content_type,
+            target_chunk_chars=req.chunk_size,
+            max_chunk_chars=max_chars,
+            overlap=req.overlap,
+        )
+        strategy = "structured"
+        max_out = max_chars
+    else:  # pragma: no cover
+        raise HTTPException(status_code=400, detail="unsupported strategy")
+
     run.chunks[req.doc_id] = chunks
-    run.chunk_params[req.doc_id] = (req.chunk_size, req.overlap)
+    max_store = max_chars if strategy == "structured" else 0
+    run.chunk_params[req.doc_id] = (strategy, req.chunk_size, req.overlap, max_store)
 
     infos = [
         ChunkInfo(
@@ -153,17 +180,31 @@ def run_chunking(run_id: str, req: ChunkRequest) -> ChunkResponse:
             start_char=c.start_char,
             end_char=c.end_char,
             text_preview=preview_text(c.text),
+            embed_text_preview=preview_text(c.embed_text) if c.embed_text else None,
+            strategy=c.strategy,
+            section_id=c.section_id,
+            section_title=c.section_title,
+            heading_path=c.heading_path,
+            source_name=c.source_name,
+            section_chunk_index=c.section_chunk_index,
         )
         for c in chunks
     ]
-    return ChunkResponse(doc_id=req.doc_id, chunk_size=req.chunk_size, overlap=req.overlap, chunks=infos)
+    return ChunkResponse(
+        doc_id=req.doc_id,
+        chunk_size=req.chunk_size,
+        overlap=req.overlap,
+        strategy=strategy,
+        max_chunk_chars=max_out,
+        chunks=infos,
+    )
 
 
 @router.get("/runs/{run_id}/chunks", response_model=ChunkResponse)
 def list_chunks(run_id: str, doc_id: str) -> ChunkResponse:
     run = _get_run_or_404(run_id)
     chunks = run.chunks.get(doc_id, [])
-    chunk_size, overlap = run.chunk_params.get(doc_id, (0, 0))
+    strategy, chunk_size, overlap, max_store = run.chunk_params.get(doc_id, ("structured", 0, 0, 0))
     infos = [
         ChunkInfo(
             chunk_id=c.chunk_id,
@@ -172,10 +213,24 @@ def list_chunks(run_id: str, doc_id: str) -> ChunkResponse:
             start_char=c.start_char,
             end_char=c.end_char,
             text_preview=preview_text(c.text),
+            embed_text_preview=preview_text(c.embed_text) if c.embed_text else None,
+            strategy=c.strategy,
+            section_id=c.section_id,
+            section_title=c.section_title,
+            heading_path=c.heading_path,
+            source_name=c.source_name,
+            section_chunk_index=c.section_chunk_index,
         )
         for c in chunks
     ]
-    return ChunkResponse(doc_id=doc_id, chunk_size=chunk_size, overlap=overlap, chunks=infos)
+    return ChunkResponse(
+        doc_id=doc_id,
+        chunk_size=chunk_size,
+        overlap=overlap,
+        strategy=strategy,
+        max_chunk_chars=max_store if strategy == "structured" and max_store > 0 else None,
+        chunks=infos,
+    )
 
 
 @router.post("/runs/{run_id}/embed", response_model=EmbedResponse)
@@ -187,7 +242,8 @@ def embed_chunks(run_id: str, req: EmbedRequest) -> EmbedResponse:
 
     state = EmbeddingState(dim=384)
     for c in chunks:
-        vec = fake_embed_384(c.text)
+        embed_in = c.embed_text or c.text
+        vec = fake_embed_384(embed_in)
         vid = hashlib.sha1(c.chunk_id.encode("utf-8")).hexdigest()[:16]
         state.vector_by_chunk_id[c.chunk_id] = vec
         state.vector_id_by_chunk_id[c.chunk_id] = vid
@@ -214,7 +270,23 @@ def build_index_for_run(run_id: str) -> IndexResponse:
     for doc_id, emb in run.embeddings.items():
         for chunk_id, vec in emb.vector_by_chunk_id.items():
             vid = emb.vector_id_by_chunk_id[chunk_id]
-            store_vs.add(vid, vec, meta={"chunk_id": chunk_id, "doc_id": doc_id})
+            # Pull richer metadata from stored chunks when available.
+            meta: dict[str, str] = {"chunk_id": chunk_id, "doc_id": doc_id}
+            for c in run.chunks.get(doc_id, []):
+                if c.chunk_id == chunk_id:
+                    if c.section_id:
+                        meta["section_id"] = c.section_id
+                    if c.heading_path:
+                        meta["heading_path"] = c.heading_path
+                    if c.section_title:
+                        meta["section_title"] = c.section_title
+                    if c.source_name:
+                        meta["source_name"] = c.source_name
+                    if c.strategy:
+                        meta["strategy"] = c.strategy
+                    break
+
+            store_vs.add(vid, vec, meta=meta)
             idx.chunk_id_by_vector_id[vid] = chunk_id
             idx.doc_id_by_vector_id[vid] = doc_id
             count += 1
