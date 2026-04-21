@@ -19,7 +19,7 @@ def test_playground_happy_path():
 
         client.post(
             f"/playground/runs/{run_id}/chunk",
-            json={"doc_id": doc_id, "chunk_size": 500, "overlap": 100},
+            json={"doc_id": doc_id, "chunk_size": 500, "overlap": 100, "strategy": "window"},
         ).raise_for_status()
         client.post(f"/playground/runs/{run_id}/embed", json={"doc_id": doc_id}).raise_for_status()
         client.post(f"/playground/runs/{run_id}/index").raise_for_status()
