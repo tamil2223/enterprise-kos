@@ -90,7 +90,13 @@ export async function listDocuments(runId: string): Promise<ListDocumentsRespons
 
 export async function chunkDocument(
   runId: string,
-  body: { doc_id: string; chunk_size: number; overlap: number }
+  body: {
+    doc_id: string;
+    chunk_size: number;
+    overlap: number;
+    strategy?: "structured" | "window";
+    max_chunk_chars?: number | null;
+  }
 ): Promise<ChunkResponse> {
   return await apiFetch<ChunkResponse>(`/playground/runs/${encodeURIComponent(runId)}/chunk`, {
     method: "POST",

@@ -32,12 +32,21 @@ export type ChunkInfo = {
   start_char: number;
   end_char: number;
   text_preview: string;
+  embed_text_preview?: string | null;
+  strategy?: string | null;
+  section_id?: string | null;
+  section_title?: string | null;
+  heading_path?: string | null;
+  source_name?: string | null;
+  section_chunk_index?: number | null;
 };
 
 export type ChunkResponse = {
   doc_id: string;
   chunk_size: number;
   overlap: number;
+  strategy?: string;
+  max_chunk_chars?: number | null;
   chunks: ChunkInfo[];
 };
 

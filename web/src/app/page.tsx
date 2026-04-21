@@ -21,7 +21,11 @@ type StepKey = "run" | "docs" | "chunk" | "embed" | "index" | "retrieve";
 const STEPS: Array<{ key: StepKey; title: string; hint: string }> = [
   { key: "run", title: "1) Run", hint: "Create an isolated playground run (server-side state)." },
   { key: "docs", title: "2) Documents", hint: "Load samples or upload .txt/.md files." },
-  { key: "chunk", title: "3) Chunk", hint: "Window chunking with overlap (per selected doc)." },
+  {
+    key: "chunk",
+    title: "3) Chunk",
+    hint: "Structured chunking (sections → sentence-ish packing) or legacy fixed-size windows (per selected doc)."
+  },
   { key: "embed", title: "4) Embed", hint: "Deterministic fake 384-d embeddings + previews." },
   { key: "index", title: "5) Index", hint: "Build the in-memory cosine index for this run." },
   {
@@ -63,6 +67,8 @@ export default function HomePage() {
 
   const [chunkSize, setChunkSize] = useState<number>(220);
   const [overlap, setOverlap] = useState<number>(40);
+  const [chunkStrategy, setChunkStrategy] = useState<"structured" | "window">("structured");
+  const [maxChunkChars, setMaxChunkChars] = useState<string>("");
 
   const [chunks, setChunks] = useState<ChunkResponse | null>(null);
   const [embed, setEmbed] = useState<EmbedResponse | null>(null);
@@ -78,6 +84,20 @@ export default function HomePage() {
   const [error, setError] = useState<string>("");
 
   const apiBase = useMemo(() => process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || "http://127.0.0.1:8000", []);
+
+  function chunkRequestBody(overlapValue: number) {
+    const maxParsed = maxChunkChars.trim() === "" ? undefined : Number(maxChunkChars);
+    const max_chunk_chars =
+      chunkStrategy === "structured" && maxParsed !== undefined && !Number.isNaN(maxParsed) ? maxParsed : null;
+
+    return {
+      doc_id: selectedDocId,
+      chunk_size: chunkSize,
+      overlap: overlapValue,
+      strategy: chunkStrategy,
+      ...(max_chunk_chars === null ? {} : { max_chunk_chars })
+    };
+  }
 
   async function refreshSummary(id: string) {
     const s = await getRunSummary(id);
@@ -172,7 +192,7 @@ export default function HomePage() {
     setError("");
     setBusy("Chunking…");
     try {
-      const resp = await chunkDocument(runId, { doc_id: selectedDocId, chunk_size: chunkSize, overlap });
+      const resp = await chunkDocument(runId, chunkRequestBody(overlap));
       setChunks(resp);
       setEmbed(null);
       setIndex(null);
@@ -231,7 +251,7 @@ export default function HomePage() {
     setError("");
     setBusy(`Pipeline (overlap=${overlapValue}) + retrieve…`);
     try {
-      await chunkDocument(runId, { doc_id: selectedDocId, chunk_size: chunkSize, overlap: overlapValue });
+      await chunkDocument(runId, chunkRequestBody(overlapValue));
       await embedDocument(runId, selectedDocId);
       await buildIndex(runId);
       const r = await retrieve(runId, { query, top_k: topK });
@@ -432,8 +452,8 @@ export default function HomePage() {
               ) : !selectedDocId ? (
                 <p className="mt-4 text-sm text-slate-400">Load documents and select a doc.</p>
               ) : (
-                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <label className="flex flex-col gap-1 text-sm">
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-6">
+                  <label className="flex flex-col gap-1 text-sm md:col-span-2">
                     <span className="text-xs font-medium text-slate-400">Chunk size (chars)</span>
                     <input
                       className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-sm outline-none ring-0 focus:border-indigo-500/60"
@@ -442,7 +462,7 @@ export default function HomePage() {
                       onChange={(e) => setChunkSize(Number(e.target.value || 0))}
                     />
                   </label>
-                  <label className="flex flex-col gap-1 text-sm">
+                  <label className="flex flex-col gap-1 text-sm md:col-span-2">
                     <span className="text-xs font-medium text-slate-400">Overlap (chars)</span>
                     <input
                       className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-sm outline-none ring-0 focus:border-indigo-500/60"
@@ -451,7 +471,32 @@ export default function HomePage() {
                       onChange={(e) => setOverlap(Number(e.target.value || 0))}
                     />
                   </label>
-                  <div className="flex items-end">
+                  <label className="flex flex-col gap-1 text-sm md:col-span-2">
+                    <span className="text-xs font-medium text-slate-400">Strategy</span>
+                    <select
+                      className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-indigo-500/60"
+                      value={chunkStrategy}
+                      onChange={(e) => setChunkStrategy(e.target.value as "structured" | "window")}
+                      disabled={!!busy}
+                    >
+                      <option value="structured">structured (sections → sentences)</option>
+                      <option value="window">window (legacy fixed-size)</option>
+                    </select>
+                  </label>
+
+                  <label className="flex flex-col gap-1 text-sm md:col-span-2">
+                    <span className="text-xs font-medium text-slate-400">Max chunk chars (structured only)</span>
+                    <input
+                      className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-sm outline-none ring-0 focus:border-indigo-500/60"
+                      inputMode="numeric"
+                      placeholder="auto"
+                      value={maxChunkChars}
+                      onChange={(e) => setMaxChunkChars(e.target.value)}
+                      disabled={!!busy || chunkStrategy !== "structured"}
+                    />
+                  </label>
+
+                  <div className="flex items-end md:col-span-2">
                     <button
                       type="button"
                       onClick={handleChunk}
@@ -462,7 +507,20 @@ export default function HomePage() {
                     </button>
                   </div>
 
-                  <div className="md:col-span-3">
+                  <div className="md:col-span-6 rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-300">
+                    <div className="font-medium text-slate-200">Notes</div>
+                    <ul className="mt-2 list-disc space-y-1 pl-5">
+                      <li>
+                        <span className="font-mono">structured</span> uses headings / outline cues, chunks inside each section, and prepends a tiny
+                        context header to the embed string (see embed preview).
+                      </li>
+                      <li>
+                        <span className="font-mono">window</span> is the original character sliding window (good for apples-to-apples overlap experiments).
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="md:col-span-6">
                     <div className="text-xs font-medium text-slate-400">Chunk previews</div>
                     <div className="mt-2 max-h-[420px] overflow-auto rounded-lg border border-slate-800 bg-slate-950/40 p-3">
                       {!chunks || chunks.chunks.length === 0 ? (
@@ -477,7 +535,35 @@ export default function HomePage() {
                                   [{c.start_char}, {c.end_char})
                                 </div>
                               </div>
+                              <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-300">
+                                {c.strategy ? (
+                                  <span className="rounded-full bg-slate-950 px-2 py-0.5 ring-1 ring-slate-800">
+                                    strategy: <span className="font-mono">{c.strategy}</span>
+                                  </span>
+                                ) : null}
+                                {c.section_title ? (
+                                  <span className="rounded-full bg-slate-950 px-2 py-0.5 ring-1 ring-slate-800">
+                                    section: <span className="font-mono">{c.section_title}</span>
+                                  </span>
+                                ) : null}
+                                {c.heading_path ? (
+                                  <span className="rounded-full bg-slate-950 px-2 py-0.5 ring-1 ring-slate-800">
+                                    path: <span className="font-mono">{c.heading_path}</span>
+                                  </span>
+                                ) : null}
+                                {c.section_chunk_index !== null && c.section_chunk_index !== undefined ? (
+                                  <span className="rounded-full bg-slate-950 px-2 py-0.5 ring-1 ring-slate-800">
+                                    sec_idx: <span className="font-mono">{String(c.section_chunk_index)}</span>
+                                  </span>
+                                ) : null}
+                              </div>
                               <div className="mt-2 text-sm text-slate-100">{c.text_preview}</div>
+                              {c.embed_text_preview ? (
+                                <div className="mt-2 text-xs text-slate-300">
+                                  <div className="font-medium text-slate-200">Embed text preview</div>
+                                  <div className="mt-1 whitespace-pre-wrap text-slate-300">{c.embed_text_preview}</div>
+                                </div>
+                              ) : null}
                             </li>
                           ))}
                         </ol>
@@ -597,7 +683,16 @@ export default function HomePage() {
                     <div className="mt-2 text-sm text-slate-300">
                       This runs an end-to-end refresh for the <span className="font-mono">selected doc only</span>: chunk → embed →
                       index → retrieve. It does it twice: first with <span className="font-mono">overlap=0</span>, then with{" "}
-                      <span className="font-mono">overlap={Math.max(0, overlap)}</span> (from the Chunk step controls).
+                      <span className="font-mono">overlap={Math.max(0, overlap)}</span> (from the Chunk step controls). It also uses your
+                      selected <span className="font-mono">strategy={chunkStrategy}</span> and{" "}
+                      <span className="font-mono">chunk_size={chunkSize}</span>
+                      {chunkStrategy === "structured" && maxChunkChars.trim() !== "" ? (
+                        <>
+                          {" "}
+                          and <span className="font-mono">max_chunk_chars={maxChunkChars.trim()}</span>
+                        </>
+                      ) : null}
+                      .
                     </div>
                   </div>
 
